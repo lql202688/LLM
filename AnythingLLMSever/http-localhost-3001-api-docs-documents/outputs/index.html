@@ -1,0 +1,1603 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>文档上传控制台</title>
+  <style>
+    :root {
+      --page: #f3f5f1;
+      --surface: #ffffff;
+      --surface-muted: #edf1ec;
+      --line: #d9dfd8;
+      --line-strong: #bcc7bd;
+      --ink: #1c2a25;
+      --muted: #65736c;
+      --accent: #176b57;
+      --accent-dark: #105343;
+      --accent-soft: #e3f2ec;
+      --warm: #bf642b;
+      --warm-soft: #fbeee4;
+      --danger: #b83d35;
+      --danger-soft: #fbe9e7;
+      --success: #1e7656;
+      --success-soft: #e5f4ec;
+      --focus: rgba(23, 107, 87, 0.22);
+      --shadow: 0 12px 34px rgba(35, 53, 45, 0.08);
+      --radius: 8px;
+      --font: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+      --mono: "Cascadia Code", Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-width: 320px;
+      background: var(--page);
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgba(23, 107, 87, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(23, 107, 87, 0.035) 1px, transparent 1px),
+        var(--page);
+      background-size: 32px 32px;
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button,
+    a {
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible,
+    label:has(input:focus-visible) {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .app {
+      width: min(1440px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 18px;
+      padding: 0 2px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 14px;
+    }
+
+    .brand-mark {
+      display: grid;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 42px;
+      place-items: center;
+      border-radius: var(--radius);
+      color: #fff;
+      background: var(--accent);
+      box-shadow: 0 8px 18px rgba(23, 107, 87, 0.22);
+    }
+
+    .brand-mark svg {
+      width: 21px;
+      height: 21px;
+    }
+
+    .brand-copy {
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(20px, 2vw, 27px);
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    .brand-copy p {
+      overflow: hidden;
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .connection-badge {
+      display: inline-flex;
+      min-height: 34px;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.78);
+      font-size: 13px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 8px;
+      border-radius: 50%;
+      background: #9aa49f;
+      box-shadow: 0 0 0 3px rgba(154, 164, 159, 0.14);
+    }
+
+    .connection-badge[data-state="checking"] .connection-dot {
+      background: var(--warm);
+      box-shadow: 0 0 0 3px rgba(191, 100, 43, 0.14);
+      animation: pulse 1.2s infinite;
+    }
+
+    .connection-badge[data-state="online"] {
+      color: var(--success);
+      border-color: #bcdacb;
+      background: var(--success-soft);
+    }
+
+    .connection-badge[data-state="online"] .connection-dot {
+      background: var(--success);
+      box-shadow: 0 0 0 3px rgba(30, 118, 86, 0.14);
+    }
+
+    .connection-badge[data-state="offline"] {
+      color: var(--danger);
+      border-color: #e8c1bd;
+      background: var(--danger-soft);
+    }
+
+    .connection-badge[data-state="offline"] .connection-dot {
+      background: var(--danger);
+      box-shadow: 0 0 0 3px rgba(184, 61, 53, 0.14);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(330px, 0.72fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .panel {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      display: flex;
+      min-height: 61px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .panel-title {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-title svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      color: var(--accent);
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.3;
+      letter-spacing: 0;
+    }
+
+    .panel-subtitle {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 450;
+    }
+
+    .panel-body {
+      padding: 18px;
+    }
+
+    .drop-zone {
+      position: relative;
+      display: grid;
+      min-height: 218px;
+      cursor: pointer;
+      place-items: center;
+      padding: 24px;
+      border: 1.5px dashed var(--line-strong);
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 50% 0, rgba(23, 107, 87, 0.055), transparent 56%),
+        #fafcf9;
+      text-align: center;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.is-dragging {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .drop-zone.is-dragging {
+      transform: scale(1.006);
+    }
+
+    .drop-zone input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .drop-copy {
+      display: grid;
+      justify-items: center;
+      pointer-events: none;
+    }
+
+    .upload-glyph {
+      display: grid;
+      width: 54px;
+      height: 54px;
+      margin-bottom: 14px;
+      place-items: center;
+      border: 1px solid #bad9ce;
+      border-radius: 50%;
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .upload-glyph svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .drop-copy strong {
+      font-size: 16px;
+      line-height: 1.4;
+    }
+
+    .drop-copy span {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .selected-file {
+      display: none;
+      min-height: 86px;
+      align-items: center;
+      gap: 14px;
+      padding: 15px;
+      border: 1px solid #c8ddd5;
+      border-radius: var(--radius);
+      background: var(--accent-soft);
+    }
+
+    .selected-file.is-visible {
+      display: flex;
+    }
+
+    .file-icon {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      flex: 0 0 44px;
+      place-items: center;
+      border: 1px solid #bad9ce;
+      border-radius: var(--radius);
+      color: var(--accent);
+      background: #fff;
+    }
+
+    .file-icon svg {
+      width: 21px;
+      height: 21px;
+    }
+
+    .file-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .file-name {
+      overflow: hidden;
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .file-meta {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 16px;
+      margin-top: 18px;
+    }
+
+    .field {
+      min-width: 0;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 7px;
+      color: #31423b;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .optional {
+      margin-left: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="url"],
+    textarea {
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: var(--ink);
+      background: #fff;
+      outline: 0;
+      transition: border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    textarea {
+      min-height: 74px;
+      resize: vertical;
+    }
+
+    input::placeholder,
+    textarea::placeholder {
+      color: #98a29d;
+    }
+
+    input:hover,
+    textarea:hover {
+      border-color: var(--line-strong);
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--focus);
+    }
+
+    .input-wrap input {
+      padding-right: 44px;
+    }
+
+    .icon-button {
+      display: inline-grid;
+      width: 36px;
+      height: 36px;
+      cursor: pointer;
+      place-items: center;
+      border: 0;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+      transition: color 140ms ease, background 140ms ease;
+    }
+
+    .icon-button:hover {
+      color: var(--ink);
+      background: var(--surface-muted);
+    }
+
+    .icon-button svg {
+      width: 17px;
+      height: 17px;
+    }
+
+    .input-wrap .icon-button {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+    }
+
+    .file-remove {
+      flex: 0 0 auto;
+      color: var(--accent-dark);
+    }
+
+    .form-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    .action-note {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .action-buttons {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 40px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 9px 14px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1;
+      text-decoration: none;
+      transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, color 140ms ease;
+    }
+
+    .button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    .button svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .button-primary {
+      min-width: 138px;
+      color: #fff;
+      background: var(--accent);
+    }
+
+    .button-primary:hover:not(:disabled) {
+      background: var(--accent-dark);
+    }
+
+    .button-secondary {
+      color: #33443d;
+      border-color: var(--line);
+      background: #fff;
+    }
+
+    .button-secondary:hover:not(:disabled) {
+      border-color: var(--line-strong);
+      background: var(--surface-muted);
+    }
+
+    .button:disabled {
+      cursor: not-allowed;
+      opacity: 0.52;
+    }
+
+    .button.is-loading svg {
+      animation: spin 0.9s linear infinite;
+    }
+
+    .side-stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    .side-panel .panel-body {
+      padding: 16px;
+    }
+
+    .settings-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: end;
+    }
+
+    .settings-row + .field {
+      margin-top: 14px;
+    }
+
+    .mini-button {
+      min-height: 42px;
+      padding: 9px 12px;
+      white-space: nowrap;
+    }
+
+    .field-hint {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+
+    .progress-section {
+      padding: 17px 18px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfa;
+    }
+
+    .progress-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+
+    .progress-label {
+      color: #34463f;
+      font-size: 13px;
+      font-weight: 750;
+    }
+
+    .progress-value {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #dfe6e1;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width 180ms ease;
+    }
+
+    .response-stage {
+      min-height: 234px;
+    }
+
+    .empty-state {
+      display: grid;
+      min-height: 201px;
+      place-items: center;
+      padding: 24px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .empty-state svg {
+      width: 27px;
+      height: 27px;
+      margin-bottom: 10px;
+      color: #8e9b94;
+    }
+
+    .empty-state p {
+      max-width: 260px;
+      margin: 0;
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
+
+    .result {
+      display: none;
+      padding: 16px;
+    }
+
+    .result.is-visible {
+      display: block;
+    }
+
+    .result-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 11px;
+      padding: 13px;
+      border: 1px solid;
+      border-radius: var(--radius);
+    }
+
+    .result-banner.success {
+      color: var(--success);
+      border-color: #bcdacb;
+      background: var(--success-soft);
+    }
+
+    .result-banner.error {
+      color: var(--danger);
+      border-color: #e8c1bd;
+      background: var(--danger-soft);
+    }
+
+    .result-banner svg {
+      width: 19px;
+      height: 19px;
+      flex: 0 0 19px;
+      margin-top: 1px;
+    }
+
+    .result-copy {
+      min-width: 0;
+    }
+
+    .result-copy strong {
+      display: block;
+      font-size: 13.5px;
+      line-height: 1.35;
+    }
+
+    .result-copy p {
+      margin: 5px 0 0;
+      color: inherit;
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+
+    .result-stats {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .result-stat {
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fafcf9;
+    }
+
+    .result-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 10.5px;
+      text-transform: uppercase;
+    }
+
+    .result-stat strong {
+      display: block;
+      overflow: hidden;
+      margin-top: 4px;
+      font-family: var(--mono);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    details {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f8faf7;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      color: #42534c;
+      font-size: 12px;
+      font-weight: 700;
+      list-style: none;
+    }
+
+    summary::-webkit-details-marker {
+      display: none;
+    }
+
+    summary::after {
+      content: "+";
+      float: right;
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    details[open] summary::after {
+      content: "-";
+    }
+
+    pre {
+      max-height: 250px;
+      overflow: auto;
+      margin: 0;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      color: #263b33;
+      background: #fff;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .endpoint-bar {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      background: #fafbf9;
+      font-family: var(--mono);
+      font-size: 10.5px;
+    }
+
+    .method {
+      padding: 2px 5px;
+      border-radius: 4px;
+      color: #fff;
+      background: var(--warm);
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .endpoint-url {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .endpoint-link {
+      display: inline-grid;
+      width: 27px;
+      height: 27px;
+      flex: 0 0 27px;
+      margin-left: auto;
+      place-items: center;
+      border-radius: 5px;
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .endpoint-link:hover {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .endpoint-link svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse {
+      50% {
+        opacity: 0.45;
+      }
+    }
+
+    @media (max-width: 980px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .side-stack {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 700px) {
+      .app {
+        padding: 14px;
+      }
+
+      .topbar {
+        align-items: flex-start;
+      }
+
+      .brand-copy p {
+        max-width: 210px;
+      }
+
+      .connection-badge {
+        min-height: 31px;
+        padding: 5px 9px;
+        font-size: 11.5px;
+      }
+
+      .workspace,
+      .side-stack {
+        grid-template-columns: 1fr;
+      }
+
+      .panel-header,
+      .panel-body {
+        padding-right: 14px;
+        padding-left: 14px;
+      }
+
+      .drop-zone {
+        min-height: 184px;
+        padding: 20px 14px;
+      }
+
+      .field-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .field.full {
+        grid-column: auto;
+      }
+
+      .form-actions {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .action-buttons {
+        display: grid;
+        grid-template-columns: 1fr auto;
+      }
+
+      .button-primary {
+        width: 100%;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12"></path>
+            <path d="m17 8-5-5-5 5"></path>
+            <path d="M5 21h14a2 2 0 0 0 2-2v-3"></path>
+            <path d="M3 16v3a2 2 0 0 0 2 2"></path>
+          </svg>
+        </div>
+        <div class="brand-copy">
+          <h1>文档上传控制台</h1>
+          <p>POST /v1/document/upload</p>
+        </div>
+      </div>
+      <div class="connection-badge" id="connectionBadge" data-state="idle" role="status" aria-live="polite">
+        <span class="connection-dot"></span>
+        <span id="connectionText">等待验证</span>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <section class="panel" aria-labelledby="uploadTitle">
+        <div class="panel-header">
+          <div class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 13v8"></path>
+              <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+              <path d="m8 17 4-4 4 4"></path>
+            </svg>
+            <div>
+              <h2 id="uploadTitle">上传文档</h2>
+              <span class="panel-subtitle">文件、工作区和文档元数据</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <label class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file">
+            <span class="drop-copy">
+              <span class="upload-glyph" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 13v8"></path>
+                  <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                  <path d="m8 17 4-4 4 4"></path>
+                </svg>
+              </span>
+              <strong>拖放文件到这里</strong>
+              <span>或点击选择本地文件</span>
+            </span>
+          </label>
+
+          <div class="selected-file" id="selectedFile">
+            <div class="file-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
+                <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
+                <path d="M10 9H8"></path>
+                <path d="M16 13H8"></path>
+                <path d="M16 17H8"></path>
+              </svg>
+            </div>
+            <div class="file-copy">
+              <p class="file-name" id="fileName"></p>
+              <p class="file-meta" id="fileMeta"></p>
+            </div>
+            <button class="icon-button file-remove" id="removeFileButton" type="button" aria-label="移除文件" title="移除文件">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M18 6 6 18"></path>
+                <path d="m6 6 12 12"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="field-grid">
+            <div class="field full">
+              <label for="workspacesInput">加入工作区 <span class="optional">可选</span></label>
+              <input id="workspacesInput" type="text" autocomplete="off" placeholder="例如：marketing,support">
+              <p class="field-hint">多个工作区使用英文逗号分隔。</p>
+            </div>
+
+            <div class="field">
+              <label for="titleInput">标题 <span class="optional">可选</span></label>
+              <input id="titleInput" type="text" autocomplete="off" placeholder="文档标题">
+            </div>
+
+            <div class="field">
+              <label for="authorInput">作者 <span class="optional">可选</span></label>
+              <input id="authorInput" type="text" autocomplete="off" placeholder="作者名称">
+            </div>
+
+            <div class="field">
+              <label for="sourceInput">来源 <span class="optional">可选</span></label>
+              <input id="sourceInput" type="text" autocomplete="off" placeholder="文档来源或链接">
+            </div>
+
+            <div class="field">
+              <label for="descriptionInput">描述 <span class="optional">可选</span></label>
+              <textarea id="descriptionInput" placeholder="文档内容简述"></textarea>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <span class="action-note" id="actionNote">请选择文件并填写 API Token</span>
+            <div class="action-buttons">
+              <button class="button button-secondary" id="resetButton" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                </svg>
+                重置
+              </button>
+              <button class="button button-primary" id="uploadButton" type="button" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 3v12"></path>
+                  <path d="m17 8-5-5-5 5"></path>
+                  <path d="M5 21h14a2 2 0 0 0 2-2v-3"></path>
+                  <path d="M3 16v3a2 2 0 0 0 2 2"></path>
+                </svg>
+                <span id="uploadButtonText">开始上传</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-stack">
+        <section class="panel side-panel" aria-labelledby="settingsTitle">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"></path>
+                <path d="m9 12 2 2 4-4"></path>
+              </svg>
+              <div>
+                <h2 id="settingsTitle">接口设置</h2>
+                <span class="panel-subtitle">连接与身份验证</span>
+              </div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="settings-row">
+              <div class="field">
+                <label for="apiBaseInput">API 地址</label>
+                <input id="apiBaseInput" type="url" value="http://localhost:3001/api" spellcheck="false">
+              </div>
+              <button class="button button-secondary mini-button" id="testButton" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5"></path>
+                </svg>
+                验证
+              </button>
+            </div>
+
+            <div class="field" style="margin-top: 14px;">
+              <label for="tokenInput">API Token</label>
+              <div class="input-wrap">
+                <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="输入 Bearer Token">
+                <button class="icon-button" id="toggleTokenButton" type="button" aria-label="显示 Token" title="显示 Token">
+                  <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+              </div>
+              <p class="field-hint">Token 仅保存在当前浏览器会话中。</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="resultTitle">
+          <div class="panel-header">
+            <div class="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"></path>
+                <path d="M14 2v6h6"></path>
+                <path d="M8 13h8"></path>
+                <path d="M8 17h5"></path>
+              </svg>
+              <div>
+                <h2 id="resultTitle">上传结果</h2>
+                <span class="panel-subtitle">状态与服务端响应</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="progress-section" aria-live="polite">
+            <div class="progress-top">
+              <span class="progress-label" id="progressLabel">尚未开始</span>
+              <span class="progress-value" id="progressValue">0%</span>
+            </div>
+            <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressTrack">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+          </div>
+
+          <div class="response-stage">
+            <div class="empty-state" id="emptyState">
+              <div>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z"></path>
+                  <path d="M12 8v4"></path>
+                  <path d="M12 16h.01"></path>
+                </svg>
+                <p>上传完成或发生错误后，结果会显示在这里。</p>
+              </div>
+            </div>
+
+            <div class="result" id="resultPanel">
+              <div class="result-banner" id="resultBanner">
+                <svg id="resultIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5"></path>
+                </svg>
+                <div class="result-copy">
+                  <strong id="resultTitleText"></strong>
+                  <p id="resultMessage"></p>
+                </div>
+              </div>
+
+              <div class="result-stats" id="resultStats">
+                <div class="result-stat">
+                  <span>文件</span>
+                  <strong id="resultFileName">-</strong>
+                </div>
+                <div class="result-stat">
+                  <span>Token 估算</span>
+                  <strong id="resultTokens">-</strong>
+                </div>
+              </div>
+
+              <details id="responseDetails">
+                <summary>查看原始响应</summary>
+                <pre id="responseJson"></pre>
+              </details>
+            </div>
+          </div>
+
+          <div class="endpoint-bar">
+            <span class="method">POST</span>
+            <span class="endpoint-url" id="endpointUrl">http://localhost:3001/api/v1/document/upload</span>
+            <a class="endpoint-link" id="docsLink" href="http://localhost:3001/api/docs/#/documents/post_v1_document_upload" target="_blank" rel="noreferrer" aria-label="打开 API 文档" title="打开 API 文档">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M15 3h6v6"></path>
+                <path d="M10 14 21 3"></path>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              </svg>
+            </a>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+    (() => {
+      const elements = {
+        apiBaseInput: document.getElementById("apiBaseInput"),
+        tokenInput: document.getElementById("tokenInput"),
+        toggleTokenButton: document.getElementById("toggleTokenButton"),
+        testButton: document.getElementById("testButton"),
+        connectionBadge: document.getElementById("connectionBadge"),
+        connectionText: document.getElementById("connectionText"),
+        dropZone: document.getElementById("dropZone"),
+        fileInput: document.getElementById("fileInput"),
+        selectedFile: document.getElementById("selectedFile"),
+        fileName: document.getElementById("fileName"),
+        fileMeta: document.getElementById("fileMeta"),
+        removeFileButton: document.getElementById("removeFileButton"),
+        workspacesInput: document.getElementById("workspacesInput"),
+        titleInput: document.getElementById("titleInput"),
+        authorInput: document.getElementById("authorInput"),
+        sourceInput: document.getElementById("sourceInput"),
+        descriptionInput: document.getElementById("descriptionInput"),
+        uploadButton: document.getElementById("uploadButton"),
+        uploadButtonText: document.getElementById("uploadButtonText"),
+        resetButton: document.getElementById("resetButton"),
+        actionNote: document.getElementById("actionNote"),
+        progressLabel: document.getElementById("progressLabel"),
+        progressValue: document.getElementById("progressValue"),
+        progressTrack: document.getElementById("progressTrack"),
+        progressBar: document.getElementById("progressBar"),
+        emptyState: document.getElementById("emptyState"),
+        resultPanel: document.getElementById("resultPanel"),
+        resultBanner: document.getElementById("resultBanner"),
+        resultIcon: document.getElementById("resultIcon"),
+        resultTitleText: document.getElementById("resultTitleText"),
+        resultMessage: document.getElementById("resultMessage"),
+        resultStats: document.getElementById("resultStats"),
+        resultFileName: document.getElementById("resultFileName"),
+        resultTokens: document.getElementById("resultTokens"),
+        responseDetails: document.getElementById("responseDetails"),
+        responseJson: document.getElementById("responseJson"),
+        endpointUrl: document.getElementById("endpointUrl"),
+        docsLink: document.getElementById("docsLink")
+      };
+
+      let selectedFile = null;
+      let activeRequest = null;
+      let isUploading = false;
+
+      const successIcon = '<path d="M20 6 9 17l-5-5"></path>';
+      const errorIcon = '<circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path>';
+
+      const savedApiBase = localStorage.getItem("documentUpload.apiBase");
+      const savedToken = sessionStorage.getItem("documentUpload.token");
+
+      if (savedApiBase) elements.apiBaseInput.value = savedApiBase;
+      if (savedToken) elements.tokenInput.value = savedToken;
+
+      function getApiBase() {
+        return elements.apiBaseInput.value.trim().replace(/\/+$/, "");
+      }
+
+      function updateEndpoint() {
+        const base = getApiBase() || "http://localhost:3001/api";
+        const uploadUrl = `${base}/v1/document/upload`;
+        elements.endpointUrl.textContent = uploadUrl;
+        elements.docsLink.href = `${base}/docs/#/documents/post_v1_document_upload`;
+      }
+
+      function cleanToken() {
+        return elements.tokenInput.value.trim().replace(/^Bearer\s+/i, "");
+      }
+
+      function setConnection(state, text) {
+        elements.connectionBadge.dataset.state = state;
+        elements.connectionText.textContent = text;
+      }
+
+      function setProgress(value, label) {
+        const normalized = Math.max(0, Math.min(100, Math.round(value)));
+        elements.progressBar.style.width = `${normalized}%`;
+        elements.progressValue.textContent = `${normalized}%`;
+        elements.progressTrack.setAttribute("aria-valuenow", String(normalized));
+        if (label) elements.progressLabel.textContent = label;
+      }
+
+      function formatBytes(bytes) {
+        if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+        const units = ["B", "KB", "MB", "GB"];
+        const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+        const value = bytes / Math.pow(1024, index);
+        return `${value.toFixed(index === 0 || value >= 100 ? 0 : 1)} ${units[index]}`;
+      }
+
+      function getExtension(name) {
+        const parts = name.split(".");
+        return parts.length > 1 ? parts.pop().toUpperCase() : "FILE";
+      }
+
+      function syncUploadState() {
+        const ready = Boolean(selectedFile && cleanToken() && !isUploading);
+        elements.uploadButton.disabled = !ready;
+
+        if (isUploading) {
+          elements.actionNote.textContent = "正在上传，请保持当前页面打开";
+        } else if (!selectedFile && !cleanToken()) {
+          elements.actionNote.textContent = "请选择文件并填写 API Token";
+        } else if (!selectedFile) {
+          elements.actionNote.textContent = "请选择需要上传的文件";
+        } else if (!cleanToken()) {
+          elements.actionNote.textContent = "请填写 API Token 后再上传";
+        } else {
+          elements.actionNote.textContent = "准备就绪，可以开始上传";
+        }
+      }
+
+      function selectFile(file) {
+        if (!file) return;
+        selectedFile = file;
+        elements.fileName.textContent = file.name;
+        elements.fileMeta.textContent = `${formatBytes(file.size)} · ${getExtension(file.name)} · ${file.type || "未知类型"}`;
+        elements.selectedFile.classList.add("is-visible");
+        elements.dropZone.style.display = "none";
+        elements.titleInput.placeholder = file.name.replace(/\.[^.]+$/, "");
+        syncUploadState();
+      }
+
+      function clearFile() {
+        selectedFile = null;
+        elements.fileInput.value = "";
+        elements.selectedFile.classList.remove("is-visible");
+        elements.dropZone.style.display = "grid";
+        elements.titleInput.placeholder = "文档标题";
+        syncUploadState();
+      }
+
+      function buildMetadata() {
+        const metadata = {};
+        const values = {
+          title: elements.titleInput.value.trim(),
+          docAuthor: elements.authorInput.value.trim(),
+          docSource: elements.sourceInput.value.trim(),
+          description: elements.descriptionInput.value.trim()
+        };
+
+        Object.entries(values).forEach(([key, value]) => {
+          if (value) metadata[key] = value;
+        });
+
+        return metadata;
+      }
+
+      function parseResponse(xhr) {
+        const raw = xhr.responseText || "";
+        if (!raw) return {};
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return { raw };
+        }
+      }
+
+      function stringifyResponse(payload) {
+        return JSON.stringify(payload, null, 2);
+      }
+
+      function showResult({ success, title, message, payload, fileName, tokenCount }) {
+        elements.emptyState.style.display = "none";
+        elements.resultPanel.classList.add("is-visible");
+        elements.resultBanner.className = `result-banner ${success ? "success" : "error"}`;
+        elements.resultIcon.innerHTML = success ? successIcon : errorIcon;
+        elements.resultTitleText.textContent = title;
+        elements.resultMessage.textContent = message;
+        elements.resultFileName.textContent = fileName || "-";
+        elements.resultTokens.textContent = tokenCount != null ? String(tokenCount) : "-";
+        elements.responseJson.textContent = stringifyResponse(payload);
+        elements.responseDetails.open = !success;
+      }
+
+      function describeHttpError(status, payload) {
+        if (status === 403) return "API Token 无效或没有上传权限。";
+        if (status === 422) return "服务端无法处理该文件，请检查文件格式或内容。";
+        if (status === 500) return payload.error || "服务端处理文档时发生错误。";
+        return payload.error || payload.message || `服务端返回 HTTP ${status}。`;
+      }
+
+      async function testConnection() {
+        const token = cleanToken();
+        if (!token) {
+          setConnection("offline", "缺少 Token");
+          syncUploadState();
+          return;
+        }
+
+        elements.apiBaseInput.value = getApiBase();
+        localStorage.setItem("documentUpload.apiBase", getApiBase());
+        sessionStorage.setItem("documentUpload.token", token);
+        elements.tokenInput.value = token;
+        updateEndpoint();
+        setConnection("checking", "正在验证");
+        elements.testButton.disabled = true;
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+
+        try {
+          const response = await fetch(`${getApiBase()}/v1/auth`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal
+          });
+          const payload = await response.json().catch(() => ({}));
+
+          if (response.ok && payload.authenticated) {
+            setConnection("online", "连接正常");
+          } else {
+            setConnection("offline", response.status === 403 ? "认证失败" : `连接异常 ${response.status}`);
+          }
+        } catch (error) {
+          setConnection("offline", error.name === "AbortError" ? "连接超时" : "服务不可用");
+        } finally {
+          clearTimeout(timeout);
+          elements.testButton.disabled = false;
+          syncUploadState();
+        }
+      }
+
+      function uploadDocument() {
+        if (!selectedFile || !cleanToken() || isUploading) return;
+
+        const token = cleanToken();
+        sessionStorage.setItem("documentUpload.token", token);
+        elements.tokenInput.value = token;
+        localStorage.setItem("documentUpload.apiBase", getApiBase());
+        updateEndpoint();
+
+        const formData = new FormData();
+        formData.append("file", selectedFile, selectedFile.name);
+
+        const workspaces = elements.workspacesInput.value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .join(",");
+
+        if (workspaces) formData.append("addToWorkspaces", workspaces);
+
+        const metadata = buildMetadata();
+        if (Object.keys(metadata).length) {
+          formData.append("metadata", JSON.stringify(metadata));
+        }
+
+        const xhr = new XMLHttpRequest();
+        activeRequest = xhr;
+        isUploading = true;
+        elements.uploadButton.classList.add("is-loading");
+        elements.uploadButtonText.textContent = "上传中";
+        elements.progressDetails = null;
+        setProgress(0, "正在连接服务");
+        syncUploadState();
+
+        xhr.open("POST", `${getApiBase()}/v1/document/upload`);
+        xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+        xhr.responseType = "text";
+
+        xhr.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          const percent = (event.loaded / event.total) * 100;
+          setProgress(percent, percent >= 100 ? "正在解析文档" : "正在上传");
+        };
+
+        xhr.onload = () => {
+          const payload = parseResponse(xhr);
+          const documents = Array.isArray(payload.documents) ? payload.documents : [];
+          const documentInfo = documents[0] || {};
+          const success = xhr.status >= 200 && xhr.status < 300 && payload.success !== false;
+
+          isUploading = false;
+          activeRequest = null;
+          elements.uploadButton.classList.remove("is-loading");
+          elements.uploadButtonText.textContent = "开始上传";
+
+          if (success) {
+            setProgress(100, "上传完成");
+            setConnection("online", "连接正常");
+            showResult({
+              success: true,
+              title: "文档上传完成",
+              message: workspaces
+                ? `文档已提交，并请求加入 ${workspaces} 工作区。`
+                : "文档已提交到 AnythingLLM，可在服务端继续处理或嵌入。",
+              payload,
+              fileName: documentInfo.title || documentInfo.name || selectedFile.name,
+              tokenCount: documentInfo.token_count_estimate
+            });
+          } else {
+            setProgress(100, "上传失败");
+            setConnection(xhr.status === 403 ? "offline" : "online", xhr.status === 403 ? "认证失败" : "服务异常");
+            showResult({
+              success: false,
+              title: `上传失败 · HTTP ${xhr.status}`,
+              message: describeHttpError(xhr.status, payload),
+              payload,
+              fileName: selectedFile.name
+            });
+          }
+
+          syncUploadState();
+        };
+
+        xhr.onerror = () => {
+          isUploading = false;
+          activeRequest = null;
+          elements.uploadButton.classList.remove("is-loading");
+          elements.uploadButtonText.textContent = "开始上传";
+          setProgress(0, "网络连接失败");
+          setConnection("offline", "连接失败");
+          showResult({
+            success: false,
+            title: "无法连接 API",
+            message: "请确认 AnythingLLM 正在 localhost:3001 运行，并检查 API 地址。",
+            payload: { error: "Network request failed" },
+            fileName: selectedFile.name
+          });
+          syncUploadState();
+        };
+
+        xhr.onabort = () => {
+          isUploading = false;
+          activeRequest = null;
+          elements.uploadButton.classList.remove("is-loading");
+          elements.uploadButtonText.textContent = "开始上传";
+          setProgress(0, "上传已取消");
+          syncUploadState();
+        };
+
+        xhr.send(formData);
+      }
+
+      elements.fileInput.addEventListener("change", (event) => {
+        selectFile(event.target.files[0]);
+      });
+
+      elements.removeFileButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        clearFile();
+      });
+
+      ["dragenter", "dragover"].forEach((eventName) => {
+        elements.dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          elements.dropZone.classList.add("is-dragging");
+        });
+      });
+
+      ["dragleave", "drop"].forEach((eventName) => {
+        elements.dropZone.addEventListener(eventName, (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          elements.dropZone.classList.remove("is-dragging");
+        });
+      });
+
+      elements.dropZone.addEventListener("drop", (event) => {
+        selectFile(event.dataTransfer.files[0]);
+      });
+
+      elements.toggleTokenButton.addEventListener("click", () => {
+        const showing = elements.tokenInput.type === "text";
+        elements.tokenInput.type = showing ? "password" : "text";
+        elements.toggleTokenButton.setAttribute("aria-label", showing ? "显示 Token" : "隐藏 Token");
+        elements.toggleTokenButton.title = showing ? "显示 Token" : "隐藏 Token";
+      });
+
+      elements.tokenInput.addEventListener("input", () => {
+        sessionStorage.setItem("documentUpload.token", elements.tokenInput.value.trim());
+        if (elements.connectionBadge.dataset.state !== "idle") {
+          setConnection("idle", "等待验证");
+        }
+        syncUploadState();
+      });
+
+      elements.apiBaseInput.addEventListener("input", () => {
+        updateEndpoint();
+        setConnection("idle", "等待验证");
+      });
+
+      elements.apiBaseInput.addEventListener("blur", () => {
+        elements.apiBaseInput.value = getApiBase();
+        localStorage.setItem("documentUpload.apiBase", getApiBase());
+        updateEndpoint();
+      });
+
+      elements.testButton.addEventListener("click", testConnection);
+      elements.uploadButton.addEventListener("click", uploadDocument);
+
+      elements.resetButton.addEventListener("click", () => {
+        if (activeRequest) activeRequest.abort();
+        clearFile();
+        elements.workspacesInput.value = "";
+        elements.titleInput.value = "";
+        elements.authorInput.value = "";
+        elements.sourceInput.value = "";
+        elements.descriptionInput.value = "";
+        setProgress(0, "尚未开始");
+        elements.emptyState.style.display = "grid";
+        elements.resultPanel.classList.remove("is-visible");
+        syncUploadState();
+      });
+
+      updateEndpoint();
+      syncUploadState();
+    })();
+  </script>
+</body>
+</html>
