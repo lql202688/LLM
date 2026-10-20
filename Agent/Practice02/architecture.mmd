@@ -1,0 +1,117 @@
+%% File Ops Function Call Assistant - Architecture
+%% Source: file_ops_chat.py
+flowchart TD
+
+    %% ===== 1. Config Layer =====
+    subgraph CONFIG["1. Config Layer - config.ini"]
+        CFG["configparser reads config.ini<br/>api_key / base_url / model"]
+        URL["build url = base_url + /chat/completions"]
+        HDR["build headers<br/>Content-Type / Authorization"]
+        CFG --> URL --> HDR
+    end
+
+    %% ===== 2. Tool Declaration Layer =====
+    subgraph DECLARE["2. Tool Declaration - tools JSON Schema"]
+        T1["getCurrentDirectory"]
+        T2["listDirectory"]
+        T3["getFileType"]
+        T4["readFileContent"]
+        T5["createFile"]
+        T6["editFileContent"]
+        T7["createDirectory"]
+        T8["deleteDirectory"]
+        T9["deleteFile"]
+        T10["renamePath"]
+    end
+
+    %% ===== 3. Tool Implementation Layer =====
+    subgraph IMPL["3. Tool Implementation - Python functions"]
+        direction TB
+        HELPER["_is_text_file<br/>ext whitelist + MIME + UTF-8 / NUL check"]
+        F1["get_current_directory<br/>os.getcwd"]
+        F2["list_directory<br/>Path.iterdir"]
+        F3["get_file_type<br/>mimetypes + _is_text_file"]
+        F4["read_file_content<br/>UTF-8 fallback GBK"]
+        F5["create_file<br/>Path.write_text"]
+        F6["edit_file_content<br/>overwrite / append"]
+        F7["create_directory<br/>Path.mkdir parents=True"]
+        F8["delete_directory<br/>shutil.rmtree"]
+        F9["delete_file<br/>Path.unlink"]
+        F10["rename_path<br/>Path.rename"]
+        HELPER -. called by .-> F3
+        HELPER -. called by .-> F4
+        HELPER -. called by .-> F6
+    end
+
+    %% declaration -> implementation mapping
+    T1 -.->|TOOL_MAP| F1
+    T2 -.->|TOOL_MAP| F2
+    T3 -.->|TOOL_MAP| F3
+    T4 -.->|TOOL_MAP| F4
+    T5 -.->|TOOL_MAP| F5
+    T6 -.->|TOOL_MAP| F6
+    T7 -.->|TOOL_MAP| F7
+    T8 -.->|TOOL_MAP| F8
+    T9 -.->|TOOL_MAP| F9
+    T10 -.->|TOOL_MAP| F10
+
+    %% ===== 4. Communication Layer =====
+    subgraph CHAT["4. Communication - stream_chat"]
+        PAYLOAD["build payload<br/>messages + tools + tool_choice=auto + stream=True"]
+        REQ["urllib.request send request"]
+        STREAM["parse SSE data chunks line by line"]
+        PARSE["aggregate content and tool_calls<br/>concat id / name / arguments by index"]
+        RET["return assistant_text, tool_calls_list"]
+        PAYLOAD --> REQ --> STREAM --> PARSE --> RET
+    end
+
+    HDR --> PAYLOAD
+    DECLARE -->|tools sent with every request| PAYLOAD
+
+    %% ===== 5. Main Loop Layer =====
+    subgraph LOOP["5. Main Loop"]
+        INPUT["input read user question<br/>exit to quit"]
+        APPEND_U["messages.append user"]
+        CALL["call stream_chat"]
+        SAVE_A["save assistant message<br/>with tool_calls"]
+        CHECK{"tool_calls present ?"}
+        EXEC["loop tool_calls<br/>json.loads args then run TOOL_MAP"]
+        APPEND_T["messages.append tool result<br/>fill tool_call_id"]
+        PRINT["print final reply"]
+        EXIT(["Exit program"])
+
+        INPUT --> APPEND_U --> CALL --> SAVE_A --> CHECK
+        CHECK -->|no| PRINT --> INPUT
+        CHECK -->|yes| EXEC --> APPEND_T --> CALL
+        INPUT -->|quit| EXIT
+    end
+
+    RET --> CALL
+    EXEC -->|dispatch func args| IMPL
+
+    %% ===== Data Store =====
+    MSG[("messages history<br/>global list")]
+    MSG -.read write.-> PAYLOAD
+    MSG -.read write.-> APPEND_U
+    MSG -.read write.-> SAVE_A
+    MSG -.read write.-> APPEND_T
+
+    %% ===== External =====
+    LLM["Remote LLM API<br/>OpenAI compatible /chat/completions"]
+    FS[("Local File System")]
+    REQ <-->|HTTP stream response| LLM
+    IMPL <-->|read write files dirs| FS
+
+    classDef config fill:#e1f5fe,stroke:#0288d1,color:#01579b;
+    classDef declare fill:#fff3e0,stroke:#f57c00,color:#e65100;
+    classDef impl fill:#e8f5e9,stroke:#388e3c,color:#1b5e20;
+    classDef chat fill:#f3e5f5,stroke:#8e24aa,color:#4a148c;
+    classDef loop fill:#fce4ec,stroke:#d81b60,color:#880e4f;
+    classDef ext fill:#eceff1,stroke:#546e7a,color:#263238;
+
+    class CFG,URL,HDR config;
+    class T1,T2,T3,T4,T5,T6,T7,T8,T9,T10 declare;
+    class HELPER,F1,F2,F3,F4,F5,F6,F7,F8,F9,F10 impl;
+    class PAYLOAD,REQ,STREAM,PARSE,RET chat;
+    class INPUT,APPEND_U,CALL,SAVE_A,CHECK,EXEC,APPEND_T,PRINT,EXIT loop;
+    class MSG,LLM,FS ext;
