@@ -15,8 +15,16 @@ import argparse
 import sys
 from pathlib import Path
 
-# 允许以脚本方式直接运行：把包根目录加入模块搜索路径
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# ---------- PyInstaller frozen 环境 & 源码环境兼容 ----------
+# frozen: PyInstaller 把所有模块收进 PYZ archive，直接 import 即可，
+# sys._MEIPASS 指向临时解压目录（数据文件用）。
+# 源码: 脚本方式运行时把包根目录加入 sys.path。
+if getattr(sys, "frozen", False):
+    # PyInstaller onedir/onefile：不用改 sys.path，import 直接工作
+    _APP_DIR = Path(sys.executable).resolve().parent
+else:
+    _APP_DIR = Path(__file__).resolve().parent
+    sys.path.insert(0, str(_APP_DIR))
 
 from core.agent import AgentSession
 from core.config import load_config
@@ -49,10 +57,20 @@ def main() -> None:
         help="选择界面实现（默认 tui）",
     )
     parser.add_argument("--config", default=None, help="配置文件路径（默认包内 config.ini）")
+    parser.add_argument(
+        "--cwd",
+        default=None,
+        help="项目根目录（默认当前工作目录），该目录下的 .agents/skills/ 会被扫描为可用 Skill",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
-    session = AgentSession(config)
+
+    # project_root: 用户显式 --cwd > os.getcwd()（脚本/双击启动时都对）
+    # Skill 扫描、数据文件路径等都从此开始
+    project_root = Path(args.cwd).resolve() if args.cwd else Path.cwd()
+
+    session = AgentSession(config, project_root=project_root)
     ui_cls = resolve_ui(args.ui)
     ui_cls(session).run()
 

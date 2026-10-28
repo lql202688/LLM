@@ -2,10 +2,20 @@
 from __future__ import annotations
 
 import configparser
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.ini"
+
+def _default_config_path() -> Path:
+    """frozen 环境读 exe 同级目录的 config.ini；源码环境读包根目录的 config.ini。"""
+    if getattr(sys, "frozen", False):
+        # PyInstaller onedir / onefile：config.ini 跟 exe 放一起
+        return Path(sys.executable).resolve().parent / "config.ini"
+    return Path(__file__).resolve().parent.parent / "config.ini"
+
+
+DEFAULT_CONFIG_PATH = _default_config_path()
 
 
 @dataclass(frozen=True)

@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from typing import Callable
 
-from . import cli_tools, datetime_tools, file_ops, search_tools, web_tools
+from . import cli_tools, datetime_tools, file_ops, search_tools, skill_tools, web_tools
 
 # ---------- 工具定义（发送给模型的 function-calling schema） ----------
 TOOL_SCHEMAS: list[dict] = [
@@ -38,6 +38,27 @@ TOOL_SCHEMAS: list[dict] = [
                     },
                 },
                 "required": ["command"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "loadSkill",
+            "description": "加载指定 Skill 的完整指令或附加文件。先用 name 参数加载 SKILL.md 正文；如果 Skill 有额外文件（示例、schema、辅助脚本），可同时传 filename 加载。路径安全限制在 Skill 目录内部",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Skill 名称（对应 SKILL.md frontmatter 的 name 字段）",
+                    },
+                    "filename": {
+                        "type": "string",
+                        "description": "可选。要加载的附加文件路径或名称。可传纯文件名（在 Skill 目录内搜索）、Skill 相对路径或绝对路径",
+                    },
+                },
+                "required": ["name"],
             },
         },
     },
@@ -256,6 +277,7 @@ TOOL_SCHEMAS: list[dict] = [
 # ---------- 工具名 -> 实现函数 ----------
 TOOL_MAP: dict[str, Callable] = {
     "RunCli": cli_tools.run_cli,
+    "loadSkill": skill_tools.load_skill,
     "fetchWeb": web_tools.fetch_web,
     "searchWeb": search_tools.search_web,
     "getDate": datetime_tools.get_date,

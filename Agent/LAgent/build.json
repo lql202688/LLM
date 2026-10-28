@@ -1,0 +1,68 @@
+{
+  "name": "LAgent",
+  "display_name": "LAgent",
+  "version": "1.0.0",
+  "publisher": "LAgent Team",
+  "entry": "main.py",
+  "console": true,
+  "onefile": false,
+  "pyinstaller": {
+    "onefile": false,
+    "console": true,
+    "noconfirm": true,
+    "clean": true,
+    "paths": ["."],
+    "add_data": [
+      "config.ini;.",
+      "ui/tui/styles.tcss;ui/tui"
+    ],
+    "hidden_import": [
+      "core",
+      "core.agent",
+      "core.config",
+      "core.events",
+      "core.llm_client",
+      "core.skills",
+      "core.skills.loader",
+      "core.tools",
+      "core.tools.registry",
+      "core.tools.file_ops",
+      "core.tools.datetime_tools",
+      "core.tools.search_tools",
+      "core.tools.web_tools",
+      "core.tools.cli_tools",
+      "core.tools.skill_tools",
+      "ui",
+      "ui.base",
+      "ui.cli",
+      "ui.tui",
+      "ui.tui.app",
+      "ui.tui.widgets",
+      "ui.tui.help_screen",
+      "trafilatura",
+      "bs4",
+      "textual",
+      "textual.widgets._text_area"
+    ],
+    "exclude_module": [
+      "PyQt5",
+      "PyQt6",
+      "PySide2",
+      "PySide6",
+      "tkinter",
+      "matplotlib",
+      "scipy",
+      "pandas",
+      "numpy",
+      "PIL",
+      "IPython",
+      "jupyter",
+      "notebook"
+    ]
+  },
+  "platforms": {
+    "windows": {
+      "formats": ["exe"]
+    }
+  }
+}
