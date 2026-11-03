@@ -1,6 +1,7 @@
 """工具注册表：集中维护工具 schema 与实现函数的分发关系。
 
-新增工具时只需在 TOOL_SCHEMAS / TOOL_MAP 中各加一条，core 与 UI 无需改动。
+新增本地工具时只需在 TOOL_SCHEMAS / TOOL_MAP 中各加一条，core 与 UI 无需改动。
+MCP 工具通过 register_mcp_tools() 在运行时动态注入。
 """
 from __future__ import annotations
 
@@ -8,6 +9,51 @@ import json
 from typing import Callable
 
 from . import cli_tools, datetime_tools, file_ops, search_tools, skill_tools, web_tools
+
+# ---------- MCP 工具动态注册（由 core/agent.py 在启动时调用） ----------
+_MCP_SCHEMAS: list[dict] = []
+
+
+def register_mcp_tools(manager) -> None:
+    """将 MCP Client Manager 发现的所有工具注入全局注册表。
+
+    Args:
+        manager: mcp_client.MCPClientManager 实例，需实现
+                 get_all_tool_schemas() 和 call_tool(name, args_json) 方法。
+    """
+    # 先清理旧的 MCP 工具（支持重新加载）
+    unregister_mcp_tools()
+
+    schemas = manager.get_all_tool_schemas()
+    for schema in schemas:
+        func_name = schema["function"]["name"]
+
+        # 包装函数：闭包捕获 manager 和暴露名
+        def _make_wrapper(n: str):
+            def _wrapper(**kwargs):
+                return manager.call_tool(n, json.dumps(kwargs, ensure_ascii=False))
+            return _wrapper
+
+        TOOL_MAP[func_name] = _make_wrapper(func_name)
+        _MCP_SCHEMAS.append(schema)
+
+    # TOOL_SCHEMAS 保持静态，但 get_all_schemas() 会合并两者
+
+
+def unregister_mcp_tools() -> None:
+    """移除所有已注册的 MCP 工具。"""
+    for schema in _MCP_SCHEMAS:
+        func_name = schema["function"]["name"]
+        TOOL_MAP.pop(func_name, None)
+    _MCP_SCHEMAS.clear()
+
+
+def get_all_schemas() -> list[dict]:
+    """返回静态工具 schema + MCP 动态 schema 的合并列表。
+
+    替代原来直接引用 TOOL_SCHEMAS 的场景，确保每次调用都能拿到最新 schema。
+    """
+    return TOOL_SCHEMAS + _MCP_SCHEMAS
 
 # ---------- 工具定义（发送给模型的 function-calling schema） ----------
 TOOL_SCHEMAS: list[dict] = [
@@ -59,6 +105,27 @@ TOOL_SCHEMAS: list[dict] = [
                     },
                 },
                 "required": ["name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "createSkill",
+            "description": "在 .agents/skills/ 下创建一个新 Skill 目录及 SKILL.md 文件。name 会自动规范化为小写字母+连字符格式的目录名；skillContext 必须包含 YAML frontmatter（以 --- 分隔）和完整 Markdown 正文。若目标 Skill 已存在会拒绝覆盖",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Skill 名称，支持中文/空格等，会自动转换为合法英文目录名（小写+连字符）。例如 'Python 代码审查' → 'python-code-review'",
+                    },
+                    "skillContext": {
+                        "type": "string",
+                        "description": "SKILL.md 的完整内容，必须以 YAML frontmatter 开头，包含 name 和 description 字段，后跟 Markdown 正文。规范模板见错误提示",
+                    },
+                },
+                "required": ["name", "skillContext"],
             },
         },
     },
@@ -278,6 +345,7 @@ TOOL_SCHEMAS: list[dict] = [
 TOOL_MAP: dict[str, Callable] = {
     "RunCli": cli_tools.run_cli,
     "loadSkill": skill_tools.load_skill,
+    "createSkill": skill_tools.create_skill,
     "fetchWeb": web_tools.fetch_web,
     "searchWeb": search_tools.search_web,
     "getDate": datetime_tools.get_date,

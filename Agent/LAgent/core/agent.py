@@ -18,8 +18,10 @@ from uuid import uuid4
 from .config import AppConfig
 from .events import AgentEvent, EventEmitter, EventType
 from .llm_client import GenerationCancelled, LLMClient
+from .mcp_client import MCPClientManager
+from .mcp_config import load_mcp_config
 from .skills.loader import SkillRegistry
-from .tools.registry import TOOL_SCHEMAS, dispatch
+from .tools.registry import dispatch, get_all_schemas, register_mcp_tools
 
 DEFAULT_MAX_MODEL_CALLS_PER_TURN = 8
 
@@ -69,6 +71,22 @@ class AgentSession:
         # 注入 SkillRegistry 给 skill_tools 模块
         from .tools import skill_tools
         skill_tools.set_registry(self.skills)
+
+        # ---------- MCP Server 连接与工具注册 ----------
+        self._mcp_manager = MCPClientManager()
+        mcp_server_configs = load_mcp_config(project_root)
+        if mcp_server_configs:
+            print(f"[MCP] 发现 {len(mcp_server_configs)} 个 MCP Server 配置，正在连接...")
+            self._mcp_manager.connect_all(mcp_server_configs)
+            register_mcp_tools(self._mcp_manager)
+            server_names = self._mcp_manager.connected_servers
+            total_mcp_tools = len(self._mcp_manager.all_tools)
+            print(
+                f"[MCP] 已连接 {len(server_names)} 个 Server，"
+                f"共注册 {total_mcp_tools} 个 MCP 工具"
+            )
+        else:
+            print("[MCP] 未发现 .mcp.json 配置，跳过 MCP Server 连接")
 
         # 构建 system prompt 并作为 messages 第一条
         self._system_prompt = self._build_system_prompt()
@@ -153,7 +171,7 @@ class AgentSession:
 
             assistant_text, tool_calls = self._llm.stream_chat(
                 self.messages,
-                TOOL_SCHEMAS,
+                get_all_schemas(),
                 on_text_delta=lambda piece: emit(
                     AgentEvent(EventType.TEXT_DELTA, {"text": piece})
                 ),
@@ -169,25 +187,34 @@ class AgentSession:
             for tc in tool_calls:
                 if self._cancel.is_set():
                     raise GenerationCancelled()
-                emit(
-                    AgentEvent(
-                        EventType.TOOL_CALL_START,
-                        {"name": tc["name"], "arguments": tc["arguments"] or "{}"},
-                    )
-                )
                 started = time.perf_counter()
-                result = dispatch(tc["name"], tc["arguments"])
-                duration_ms = (time.perf_counter() - started) * 1000
-                emit(
-                    AgentEvent(
-                        EventType.TOOL_CALL_RESULT,
-                        {
-                            "name": tc["name"],
-                            "result": str(result),
-                            "duration_ms": duration_ms,
-                        },
+                try:
+                    emit(
+                        AgentEvent(
+                            EventType.TOOL_CALL_START,
+                            {"name": tc["name"], "arguments": tc["arguments"] or "{}"},
+                        )
                     )
-                )
+                    result = dispatch(tc["name"], tc["arguments"])
+                except Exception as e:
+                    # 工具失败或被中断时也要给出一条 tool 结果，
+                    # 否则历史里 assistant 的 tool_calls 会缺少配对而触发接口 400
+                    result = f"工具执行失败: {e}"
+                duration_ms = (time.perf_counter() - started) * 1000
+                try:
+                    emit(
+                        AgentEvent(
+                            EventType.TOOL_CALL_RESULT,
+                            {
+                                "name": tc["name"],
+                                "result": str(result),
+                                "duration_ms": duration_ms,
+                            },
+                        )
+                    )
+                except Exception:
+                    # UI 渲染异常不应打断工具循环
+                    pass
                 self.messages.append(
                     {
                         "role": "tool",

@@ -10,6 +10,7 @@ from textual import work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import VerticalScroll
+from textual.content import Content
 from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Collapsible, Markdown, Static, TextArea
@@ -118,13 +119,16 @@ class ToolCallCard(Collapsible):
         self._body = Static("执行中…", classes="tool-body", markup=False)
         super().__init__(
             self._body,
-            title=f"▶ {name}({self._short_args()}) · 执行中",
+            # 标题含工具参数 JSON（方括号/引号），用纯文本 Content 避免被当成 markup 解析
+            title=Content.from_text(f"▶ {name}({self._short_args()}) · 执行中"),
             collapsed=True,
             classes="tool-card running",
         )
 
     def finish(self, result: str, duration_ms: float) -> None:
-        self.title = f"✓ {self.tool_name}({self._short_args()}) · {duration_ms:.0f} ms"
+        self.title = Content.from_text(
+            f"✓ {self.tool_name}({self._short_args()}) · {duration_ms:.0f} ms"
+        )
         body = f"参数\n{self._pretty_args()}\n\n结果\n{result}"
         self._body.update(body)
         self.remove_class("running")

@@ -48,6 +48,26 @@ def resolve_ui(name: str) -> type[AgentUI]:
     raise ValueError(f"未注册的界面: {name}（可选: {', '.join(UI_REGISTRY)}）")
 
 
+def _enable_windows_vt() -> None:
+    """在 Windows 旧控制台里打开 ANSI 转义序列解析。
+
+    旧版 cmd.exe 控制台默认不做 VT 解析，Textual 输出的光标/颜色序列会被
+    原样打印成一屏 `[<…m` 乱码。TUI 启动前显式打开该模式即可避免。
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
+        mode = ctypes.c_uint()
+        if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+    except Exception:
+        pass  # 不是控制台（如输出被重定向）时忽略
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="LAgent 文件操作助手")
     parser.add_argument(
@@ -63,6 +83,9 @@ def main() -> None:
         help="项目根目录（默认当前工作目录），该目录下的 .agents/skills/ 会被扫描为可用 Skill",
     )
     args = parser.parse_args()
+
+    # 必须在 TUI 输出任何内容之前打开 VT 解析，否则旧 cmd 控制台只会打印转义序列
+    _enable_windows_vt()
 
     config = load_config(args.config)
 
