@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from typing import Callable
 
-from . import cli_tools, datetime_tools, file_ops, search_tools, skill_tools, web_tools
+from . import cli_tools, context_tools, datetime_tools, file_ops, search_tools, skill_tools, web_tools
 
 # ---------- MCP 工具动态注册（由 core/agent.py 在启动时调用） ----------
 _MCP_SCHEMAS: list[dict] = []
@@ -339,6 +339,27 @@ TOOL_SCHEMAS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "recallContext",
+            "description": "在 .agents/context/ 历史归档中按关键词检索原始上下文。当压缩摘要缺少某些历史细节时调用此工具补全。返回命中的归档编号、位置和内容片段",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "可选。指定要检索的归档编号（如 20261022-153000）。不提供则在全部历史归档中检索",
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "必需。要查找的关键词或文本内容，支持空格分隔多关键词",
+                    },
+                },
+                "required": ["text"],
+            },
+        },
+    },
 ]
 
 # ---------- 工具名 -> 实现函数 ----------
@@ -360,6 +381,7 @@ TOOL_MAP: dict[str, Callable] = {
     "deleteDirectory": file_ops.delete_directory,
     "deleteFile": file_ops.delete_file,
     "renamePath": file_ops.rename_path,
+    "recallContext": context_tools.recallContext,
 }
 
 

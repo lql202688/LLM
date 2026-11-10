@@ -16,18 +16,14 @@ import sys
 from pathlib import Path
 
 # ---------- PyInstaller frozen 环境 & 源码环境兼容 ----------
-# frozen: PyInstaller 把所有模块收进 PYZ archive，直接 import 即可，
-# sys._MEIPASS 指向临时解压目录（数据文件用）。
-# 源码: 脚本方式运行时把包根目录加入 sys.path。
 if getattr(sys, "frozen", False):
-    # PyInstaller onedir/onefile：不用改 sys.path，import 直接工作
     _APP_DIR = Path(sys.executable).resolve().parent
 else:
     _APP_DIR = Path(__file__).resolve().parent
     sys.path.insert(0, str(_APP_DIR))
 
 from core.agent import AgentSession
-from core.config import load_config
+from core.config import DEFAULT_CONFIG_PATH, ensure_config_exists, load_config
 from ui.base import AgentUI
 from ui.cli import ConsoleUI
 
@@ -43,29 +39,23 @@ def resolve_ui(name: str) -> type[AgentUI]:
         return ConsoleUI
     if name == "tui":
         from ui.tui.app import ChatApp
-
         return ChatApp
     raise ValueError(f"未注册的界面: {name}（可选: {', '.join(UI_REGISTRY)}）")
 
 
 def _enable_windows_vt() -> None:
-    """在 Windows 旧控制台里打开 ANSI 转义序列解析。
-
-    旧版 cmd.exe 控制台默认不做 VT 解析，Textual 输出的光标/颜色序列会被
-    原样打印成一屏 `[<…m` 乱码。TUI 启动前显式打开该模式即可避免。
-    """
+    """在 Windows 旧控制台里打开 ANSI 转义序列解析。"""
     if sys.platform != "win32":
         return
     try:
         import ctypes
-
         kernel32 = ctypes.windll.kernel32
         handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
         mode = ctypes.c_uint()
         if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
-            kernel32.SetConsoleMode(handle, mode.value | 0x0004)  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            kernel32.SetConsoleMode(handle, mode.value | 0x0004)
     except Exception:
-        pass  # 不是控制台（如输出被重定向）时忽略
+        pass
 
 
 def main() -> None:
@@ -84,18 +74,58 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    # 必须在 TUI 输出任何内容之前打开 VT 解析，否则旧 cmd 控制台只会打印转义序列
     _enable_windows_vt()
 
-    config = load_config(args.config)
+    # ---------- 1. 确保 config.ini 存在 ----------
+    config_path = Path(args.config) if args.config else DEFAULT_CONFIG_PATH
+    first_run = ensure_config_exists(config_path)
 
-    # project_root: 用户显式 --cwd > os.getcwd()（脚本/双击启动时都对）
-    # Skill 扫描、数据文件路径等都从此开始
+    if first_run:
+        print("=" * 60)
+        print("  LAgent 首次启动检测")
+        print("=" * 60)
+        print(f"\n✓ 已自动创建配置文件: {config_path}")
+        print("\n⚠ 配置文件中包含 mock API Key，请修改后重新启动。")
+        print("  需要修改的关键项：")
+        print("    [llm] api_key     - 你的 API Key")
+        print("    [llm] model       - 模型名称")
+        print("    [llm] base_url    - API 端点")
+        print("\n按 Enter 继续（将使用 mock 配置启动，功能受限）...")
+        try:
+            if args.ui == "cli":
+                input()  # CLI 模式等待用户确认
+        except Exception:
+            pass
+
+    # ---------- 2. 加载配置 ----------
+    try:
+        config = load_config(config_path)
+    except Exception as e:
+        print(f"\n✗ 配置文件加载失败: {e}")
+        print(f"  请检查 {config_path} 的格式是否正确。")
+        if first_run:
+            print("\n  这是首次运行，配置文件刚刚创建，请先填写有效配置后再启动。")
+        sys.exit(1)
+
+    # ---------- 3. 项目根目录 ----------
     project_root = Path(args.cwd).resolve() if args.cwd else Path.cwd()
 
+    # ---------- 4. 创建会话 ----------
     session = AgentSession(config, project_root=project_root)
+
+    # ---------- 5. 启动 MCP 异步加载（在 UI 渲染前启动，UI 侧监控完成信号） ----------
+    mcp_thread = session.start_mcp_loading()
+    if mcp_thread:
+        # 标记为可监控的后台线程
+        pass
+
+    # ---------- 6. 启动 UI ----------
     ui_cls = resolve_ui(args.ui)
-    ui_cls(session).run()
+    ui = ui_cls(session)
+    # 把 MCP 线程引用传给 UI，让它能够监控加载状态
+    if hasattr(ui, "set_mcp_loader"):
+        ui.set_mcp_loader(mcp_thread)
+    ui.run()
 
 
 if __name__ == "__main__":

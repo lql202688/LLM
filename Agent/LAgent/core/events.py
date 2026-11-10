@@ -16,6 +16,11 @@ class EventType:
     INTERRUPTED = "interrupted"          # payload: {"message": str}（本轮消息已回滚）
     TURN_DONE = "turn_done"              # payload: {}
     ERROR = "error"                      # payload: {"message": str}
+    # ---------- 上下文压缩 ----------
+    CONTEXT_WARN = "context_warn"        # payload: {"tokens": int, "window": int, "ratio": float}
+    COMPACT_START = "compact_start"      # payload: {"original_tokens": int}
+    COMPACT_DONE = "compact_done"        # payload: {"archive_id": str, "original_tokens": int, "summary_tokens": int}
+    COMPACT_FAILED = "compact_failed"    # payload: {"message": str}
 
 
 @dataclass(frozen=True)
